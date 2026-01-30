@@ -98,7 +98,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 POSITION_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Required(ATTR_POSITION): vol.All(
             vol.Coerce(int),
             vol.Range(min=0, max=100),
@@ -111,7 +110,6 @@ POSITION_SCHEMA = vol.Schema(
 
 ACTION_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Required(ATTR_ACTION): cv.string
     }
 )
@@ -168,12 +166,18 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         _LOGGER.error("Unable to resolve entity platform; services not registered.")
         return
 
+    # Use Home Assistant's helper so entity targets are added and the platform
+    # schema is recognized as an entity service schema.
     platform.async_register_entity_service(
-        SERVICE_SET_KNOWN_POSITION, POSITION_SCHEMA, "set_known_position"
+        SERVICE_SET_KNOWN_POSITION,
+        cv.make_entity_service_schema(POSITION_SCHEMA),
+        "set_known_position",
     )
 
     platform.async_register_entity_service(
-        SERVICE_SET_KNOWN_ACTION, ACTION_SCHEMA, "set_known_action"
+        SERVICE_SET_KNOWN_ACTION,
+        cv.make_entity_service_schema(ACTION_SCHEMA),
+        "set_known_action",
     )
 
     async def async_forward_set_known_position(call):
@@ -196,17 +200,19 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             blocking=True,  # Keep service behavior synchronous for automations.
         )
 
+    # Reuse the entity service schema so domain-level calls accept entity
+    # targets consistently with the cover platform service.
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_KNOWN_POSITION,
         async_forward_set_known_position,
-        schema=POSITION_SCHEMA,
+        schema=cv.make_entity_service_schema(POSITION_SCHEMA),
     )
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_KNOWN_ACTION,
         async_forward_set_known_action,
-        schema=ACTION_SCHEMA,
+        schema=cv.make_entity_service_schema(ACTION_SCHEMA),
     )
 
 
