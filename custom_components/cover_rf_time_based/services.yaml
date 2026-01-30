@@ -1,14 +1,9 @@
-send_command:
-  description: Send device command through Cover.
-  fields:
-    command: {description: The command to be sent., example: 'open_cover'}
-    device_id: {description: device ID.}
 set_known_position:
   description: Set position aquired outside of this component without triggering action
+  target:
+    entity:
+      domain: cover
   fields:
-    entity_id:
-      description: entity id of cover to set position for
-      example: cover.garage_door
     position:
       description: position of cover, between 0 and 100 (inclusive)
       example: 50
@@ -20,10 +15,10 @@ set_known_position:
       example: current
 set_known_action:
   description: Action of open, stop or close captured outside of HA, trigger cover response in HA without triggering action
+  target:
+    entity:
+      domain: cover
   fields:
-    entity_id:
-      description: entity id of cover to set position for
-      example: cover.garage_door
     action:
       description: must be one of open, close or stop
       example: open
