@@ -96,23 +96,31 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     }
 )
 
-POSITION_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_POSITION): vol.All(
-            vol.Coerce(int),
-            vol.Range(min=0, max=100),
-        ),
-        vol.Optional(ATTR_CONFIDENT, default=False): cv.boolean,
-        vol.Optional(ATTR_POSITION_TYPE, default=ATTR_POSITION_TYPE_TARGET): cv.string
-    }
-)
+# Keep service-only fields as a mapping so Home Assistant can merge entity
+# targets via make_entity_service_schema without schema type errors.
+POSITION_SCHEMA_FIELDS = {
+    vol.Required(ATTR_POSITION): vol.All(
+        vol.Coerce(int),
+        vol.Range(min=0, max=100),
+    ),
+    vol.Optional(ATTR_CONFIDENT, default=False): cv.boolean,
+    vol.Optional(ATTR_POSITION_TYPE, default=ATTR_POSITION_TYPE_TARGET): cv.string,
+}
+# Build the full service schema once so both entity and domain services share
+# the exact same validation contract.
+POSITION_SERVICE_SCHEMA = cv.make_entity_service_schema(POSITION_SCHEMA_FIELDS)
+POSITION_SCHEMA = vol.Schema(POSITION_SCHEMA_FIELDS)
 
 
-ACTION_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_ACTION): cv.string
-    }
-)
+# Keep service-only fields as a mapping so Home Assistant can merge entity
+# targets via make_entity_service_schema without schema type errors.
+ACTION_SCHEMA_FIELDS = {
+    vol.Required(ATTR_ACTION): cv.string,
+}
+# Build the full service schema once so both entity and domain services share
+# the exact same validation contract.
+ACTION_SERVICE_SCHEMA = cv.make_entity_service_schema(ACTION_SCHEMA_FIELDS)
+ACTION_SCHEMA = vol.Schema(ACTION_SCHEMA_FIELDS)
 
 
 DOMAIN = "cover_rf_time_based"
@@ -170,13 +178,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     # schema is recognized as an entity service schema.
     platform.async_register_entity_service(
         SERVICE_SET_KNOWN_POSITION,
-        cv.make_entity_service_schema(POSITION_SCHEMA),
+        POSITION_SERVICE_SCHEMA,
         "set_known_position",
     )
 
     platform.async_register_entity_service(
         SERVICE_SET_KNOWN_ACTION,
-        cv.make_entity_service_schema(ACTION_SCHEMA),
+        ACTION_SERVICE_SCHEMA,
         "set_known_action",
     )
 
@@ -206,13 +214,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         DOMAIN,
         SERVICE_SET_KNOWN_POSITION,
         async_forward_set_known_position,
-        schema=cv.make_entity_service_schema(POSITION_SCHEMA),
+        schema=POSITION_SERVICE_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_KNOWN_ACTION,
         async_forward_set_known_action,
-        schema=cv.make_entity_service_schema(ACTION_SCHEMA),
+        schema=ACTION_SERVICE_SCHEMA,
     )
 
 
