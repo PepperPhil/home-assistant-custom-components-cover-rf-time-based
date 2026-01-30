@@ -99,7 +99,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 POSITION_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-        vol.Required(ATTR_POSITION): cv.positive_int,
+        vol.Required(ATTR_POSITION): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=0, max=100),
+        ),
         vol.Optional(ATTR_CONFIDENT, default=False): cv.boolean,
         vol.Optional(ATTR_POSITION_TYPE, default=ATTR_POSITION_TYPE_TARGET): cv.string
     }
@@ -153,6 +156,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async_add_entities(devices_from_config(config))
 
     platform = entity_platform.current_platform.get()
+    if platform is None:
+        # We resolve the platform this way for newer HA versions where the
+        # context variable can be unset during setup.
+        platform_getter = getattr(entity_platform, "async_get_current_platform", None)
+        if platform_getter is not None:
+            platform = platform_getter()
+    if platform is None:
+        # We bail out if we cannot resolve a platform to avoid crashes while
+        # still allowing entities to load.
+        _LOGGER.error("Unable to resolve entity platform; services not registered.")
+        return
 
     platform.async_register_entity_service(
         SERVICE_SET_KNOWN_POSITION, POSITION_SCHEMA, "set_known_position"
@@ -160,6 +174,39 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     platform.async_register_entity_service(
         SERVICE_SET_KNOWN_ACTION, ACTION_SCHEMA, "set_known_action"
+    )
+
+    async def async_forward_set_known_position(call):
+        # We forward from the integration domain because users expect to call
+        # cover_rf_time_based.* while the logic is attached to cover entities.
+        await hass.services.async_call(
+            "cover",
+            SERVICE_SET_KNOWN_POSITION,
+            call.data,
+            blocking=True,  # Keep service behavior synchronous for automations.
+        )
+
+    async def async_forward_set_known_action(call):
+        # We forward from the integration domain because users expect to call
+        # cover_rf_time_based.* while the logic is attached to cover entities.
+        await hass.services.async_call(
+            "cover",
+            SERVICE_SET_KNOWN_ACTION,
+            call.data,
+            blocking=True,  # Keep service behavior synchronous for automations.
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_KNOWN_POSITION,
+        async_forward_set_known_position,
+        schema=POSITION_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_KNOWN_ACTION,
+        async_forward_set_known_action,
+        schema=ACTION_SCHEMA,
     )
 
 

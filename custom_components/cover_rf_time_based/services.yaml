@@ -10,7 +10,7 @@ set_known_position:
       description: entity id of cover to set position for
       example: cover.garage_door
     position:
-      description: position of cover, between 0 and 100
+      description: position of cover, between 0 and 100 (inclusive)
       example: 50
     confident:
       description: optional (default is false) - if we are confident in this position, i.e. affects if state is assumed or not. To be used for example with a contact sensor confirming that the position was really reached.
@@ -27,4 +27,3 @@ set_known_action:
     action:
       description: must be one of open, close or stop
       example: open
-
