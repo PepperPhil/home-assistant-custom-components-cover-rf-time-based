@@ -159,7 +159,25 @@ def devices_from_config(domain_config):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the cover platform."""
-    async_add_entities(devices_from_config(config))
+    devices = devices_from_config(config)
+    async_add_entities(devices)
+
+    async def async_dispatch_known_service(call, method_name):
+        # We resolve entities ourselves so both cover.* and
+        # cover_rf_time_based.* keep working even if HA platform service
+        # registration differs across versions.
+        entity_ids = call.data.get(ATTR_ENTITY_ID, [])
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
+
+        service_data = {
+            key: value for key, value in call.data.items() if key != ATTR_ENTITY_ID
+        }
+
+        for device in devices:
+            if device.entity_id in entity_ids:
+                await getattr(device, method_name)(**service_data)
+                device.async_schedule_update_ha_state()
 
     platform = entity_platform.current_platform.get()
     if platform is None:
@@ -189,24 +207,14 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     )
 
     async def async_forward_set_known_position(call):
-        # We forward from the integration domain because users expect to call
-        # cover_rf_time_based.* while the logic is attached to cover entities.
-        await hass.services.async_call(
-            "cover",
-            SERVICE_SET_KNOWN_POSITION,
-            call.data,
-            blocking=True,  # Keep service behavior synchronous for automations.
-        )
+        # We use one shared dispatcher so domain and compatibility aliases
+        # execute exactly the same entity logic.
+        await async_dispatch_known_service(call, "set_known_position")
 
     async def async_forward_set_known_action(call):
-        # We forward from the integration domain because users expect to call
-        # cover_rf_time_based.* while the logic is attached to cover entities.
-        await hass.services.async_call(
-            "cover",
-            SERVICE_SET_KNOWN_ACTION,
-            call.data,
-            blocking=True,  # Keep service behavior synchronous for automations.
-        )
+        # We use one shared dispatcher so domain and compatibility aliases
+        # execute exactly the same entity logic.
+        await async_dispatch_known_service(call, "set_known_action")
 
     # Reuse the entity service schema so domain-level calls accept entity
     # targets consistently with the cover platform service.
@@ -222,6 +230,26 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         async_forward_set_known_action,
         schema=ACTION_SERVICE_SCHEMA,
     )
+
+    if not hass.services.has_service("cover", SERVICE_SET_KNOWN_POSITION):
+        # We expose legacy cover.* names so existing automations do not break
+        # when users upgrade Home Assistant or this integration.
+        hass.services.async_register(
+            "cover",
+            SERVICE_SET_KNOWN_POSITION,
+            async_forward_set_known_position,
+            schema=POSITION_SERVICE_SCHEMA,
+        )
+
+    if not hass.services.has_service("cover", SERVICE_SET_KNOWN_ACTION):
+        # We expose legacy cover.* names so existing automations do not break
+        # when users upgrade Home Assistant or this integration.
+        hass.services.async_register(
+            "cover",
+            SERVICE_SET_KNOWN_ACTION,
+            async_forward_set_known_action,
+            schema=ACTION_SERVICE_SCHEMA,
+        )
 
 
 class CoverTimeBased(CoverEntity, RestoreEntity):
