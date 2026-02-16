@@ -187,24 +187,23 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         if platform_getter is not None:
             platform = platform_getter()
     if platform is None:
-        # We bail out if we cannot resolve a platform to avoid crashes while
-        # still allowing entities to load.
-        _LOGGER.error("Unable to resolve entity platform; services not registered.")
-        return
+        # We keep running without platform entity-service registration because
+        # domain-level registrations below are enough for automation validation.
+        _LOGGER.warning("Unable to resolve entity platform; using domain service fallback.")
+    else:
+        # We use entity-service registration when available so HA can route
+        # target selectors natively for this cover platform.
+        platform.async_register_entity_service(
+            SERVICE_SET_KNOWN_POSITION,
+            POSITION_SERVICE_SCHEMA,
+            "set_known_position",
+        )
 
-    # Use Home Assistant's helper so entity targets are added and the platform
-    # schema is recognized as an entity service schema.
-    platform.async_register_entity_service(
-        SERVICE_SET_KNOWN_POSITION,
-        POSITION_SERVICE_SCHEMA,
-        "set_known_position",
-    )
-
-    platform.async_register_entity_service(
-        SERVICE_SET_KNOWN_ACTION,
-        ACTION_SERVICE_SCHEMA,
-        "set_known_action",
-    )
+        platform.async_register_entity_service(
+            SERVICE_SET_KNOWN_ACTION,
+            ACTION_SERVICE_SCHEMA,
+            "set_known_action",
+        )
 
     async def async_forward_set_known_position(call):
         # We use one shared dispatcher so domain and compatibility aliases
